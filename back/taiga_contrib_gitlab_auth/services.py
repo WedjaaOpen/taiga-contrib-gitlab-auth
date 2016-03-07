@@ -31,7 +31,7 @@ from . import connector
 
 
 @tx.atomic
-def gitlab_register(username:str, email:str, full_name:str, gitlab_id:int, bio:str, token:str=None):
+def gitlab_register(username:str, email:str, full_name:str, gitlab_id:int, bio:str):
     """
     Register a new user from gitlab.
 
@@ -49,7 +49,7 @@ def gitlab_register(username:str, email:str, full_name:str, gitlab_id:int, bio:s
         user = auth_data.user
     except auth_data_model.DoesNotExist:
         try:
-            # Is a user with the same email as the github user?
+            # Is a user with the same email as the gitlab user?
             user = user_model.objects.get(email=email)
             auth_data_model.objects.create(user=user, key="gitlab", value=gitlab_id, extra={})
         except user_model.DoesNotExist:
@@ -64,29 +64,20 @@ def gitlab_register(username:str, email:str, full_name:str, gitlab_id:int, bio:s
             send_register_email(user)
             user_registered_signal.send(sender=user.__class__, user=user)
 
-    if token:
-        membership = get_membership_by_token(token)
-
-        try:
-            membership.user = user
-            membership.save(update_fields=["user"])
-        except IntegrityError:
-            raise exc.IntegrityError(_("This user is already a member of the project."))
-
     return user
 
 
 def gitlab_login_func(request):
     code = request.DATA.get('code', None)
-    token = request.DATA.get('token', None)
+    redirect_uri = request.DATA.get('redirect_uri', None)
 
-    email, user_info = connector.me(code)
+    email, user_info = connector.me(code, redirect_uri)
 
     user = gitlab_register(username=user_info.username,
                            email=email,
                            full_name=user_info.full_name,
                            gitlab_id=user_info.id,
-                           bio=user_info.bio,
-                           token=token)
+                           bio=user_info.bio)
+
     data = make_auth_response_data(user)
     return data

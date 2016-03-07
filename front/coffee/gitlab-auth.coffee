@@ -65,19 +65,19 @@ GitlabLoginButtonDirective = ($window, $params, $location, $config, $events, $co
         loginWithGitLabAccount = ->
             type = $params.state
             code = $params.code
-            token = $params.token
 
             return if not (type == "gitlab" and code)
             $loader.start(true)
+            redirectToUri = $location.protocol() + '://' + $location.host() + ':' + $location.port() + '/login';
+            data = { code: code, redirect_uri: redirectToUri }
 
-            data = {code: code, token: token}
             $auth.login(data, type).then(loginOnSuccess, loginOnError)
 
         loginWithGitLabAccount()
 
         $el.on "click", ".button-auth", (event) ->
-            redirectToUri = $location.absUrl()
-            url = "#{gitlabLoginUrl}?response_type=code&client_id=#{applicationId}&redirect_uri=#{redirectToUri}&state=gitlab"
+            redirectToUri = $location.protocol() + '://' + $location.host() + ':' + $location.port() + '/login';
+            url = "#{gitlabLoginUrl}?response_type=code&client_id=#{applicationId}&redirect_uri=#{redirectToUri}&scope=api&state=gitlab"
             $window.location.href = url
 
         $scope.$on "$destroy", ->

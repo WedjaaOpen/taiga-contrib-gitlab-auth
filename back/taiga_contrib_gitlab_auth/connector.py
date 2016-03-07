@@ -17,6 +17,9 @@
 
 import requests
 import json
+import re 
+
+from pprint import pprint
 
 from collections import namedtuple
 from urllib.parse import urljoin
@@ -30,12 +33,11 @@ from taiga.base.connectors.exceptions import ConnectorBaseException
 class GitLabApiError(ConnectorBaseException):
     pass
 
-
 ######################################################
 ## Data
 ######################################################
 GITLAB_URL = getattr(settings, "GITLAB_URL", None)
-GITLAB_APP_ID = getattr(settings, "GITLAP_APP_ID", None)
+GITLAB_APP_ID = getattr(settings, "GITLAB_APP_ID", None)
 GITLAB_APP_SECRET = getattr(settings, "GITLAB_APP_SECRET", None)
 
 API_RESOURCES_URLS = {
@@ -44,15 +46,14 @@ API_RESOURCES_URLS = {
         "access-token": "oauth/token"
     },
     "user": {
-        "profile": "api/v3/user",
-        "emails": "api/v3/user/emails"
+        "profile": "api/v3/user"
     }
 }
 
 HEADERS = {"Accept": "application/json",}
 
 AuthInfo = namedtuple("AuthInfo", ["access_token"])
-User = namedtuple("User", ["id", "username", "full_name", "bio"])
+User = namedtuple("User", ["id", "username", "full_name", "bio", "email"])
 Email = namedtuple("Email", ["email", "is_primary"])
 
 
@@ -83,20 +84,21 @@ def _get(url:str, headers:dict) -> dict:
     data = response.json()
     if response.status_code != 200:
         raise GitLabApiError({"status_code": response.status_code,
-                                  "error": data.get("error", "")})
+                                  "error": data.get("message", response.text)})
     return data
-
 
 def _post(url:str, params:dict, headers:dict) -> dict:
     """
     Make a POST call.
     """
-    response = requests.post(url, params=params, headers=headers)
+
+    preparedRequest = requests.Request('POST', url, files=params, headers=headers).prepare()
+    response = requests.Session().send(preparedRequest)
 
     data = response.json()
     if response.status_code != 200 or "error" in data:
         raise GitLabApiError({"status_code": response.status_code,
-                                  "error": data.get("error", "")})
+                                  "error": data.get("error_description", response.text)})
     return data
 
 
@@ -104,21 +106,31 @@ def _post(url:str, params:dict, headers:dict) -> dict:
 ## Simple calls
 ######################################################
 
-def login(access_code:str, application_id:str=GITLAB_APP_ID, application_secret:str=GITLAB_APP_SECRET,
+def login(access_code:str, redirect_uri:str, application_id:str=GITLAB_APP_ID, application_secret:str=GITLAB_APP_SECRET,
           headers:dict=HEADERS):
     """
     Get access_token fron an user authorized code, the GitLab application id and secret key.
     (See https://github.com/doorkeeper-gem/doorkeeper - the middleware used by  GitLab).
     """
-    if not GITLAB_APP_ID or not GITLAB_APP_SECRET:
-        raise GitLabApiError({"error_message": _("Login with GitLab account is disabled. Ping your "
-                                                     "sysadmins. Maybe they're playing Minecraft hidden "
-                                                     "in a datacenter cabinet.")})
+
+    if not application_id:
+        raise GitLabApiError({"error_message": _("Missing GITLAB_APP_ID from configuration.")})
+
+    if not application_secret:
+        raise GitLabApiError({"error_message": _("Missing GITLAB_APP_SECRET from configuration.")})
+
+    if not GITLAB_URL:
+        raise GitLabApiError({"error_message": _("Missing GITLAB_URL from configuration.")})
+
+    authorized_redirect = re.sub(r'(?is)&code=.+', '', redirect_uri)
 
     url = urljoin(GITLAB_URL, "oauth/token")
-    params={"code": access_code,
-            "client_id": application_id,
-            "client_secret": application_secret
+    print("OAUTH: ", url, " - code: ", access_code, " - client id: ", application_id, "- secret: ", application_secret)
+    params={"code": (None, access_code),
+            "client_id": (None, application_id),
+            "client_secret": (None, application_secret),
+	    "grant_type": (None, "authorization_code"),
+            "redirect_uri": (None, authorized_redirect)
 	   }
     data = _post(url, params=params, headers=headers)
     return AuthInfo(access_token=data.get("access_token", None))
@@ -132,38 +144,26 @@ def get_user_profile(headers:dict=HEADERS):
     url = _build_url("user", "profile")
     data = _get(url, headers=headers)
     return User(id=data.get("id", None),
+		email=data.get("email", None),
                 username=data.get("login", None),
                 full_name=(data.get("name", None) or ""),
                 bio=(data.get("bio", None) or ""))
-
-
-def get_user_emails(headers:dict=HEADERS) -> list:
-    """
-    Get a list with all emails of the authenticated user.
-
-    """
-    url = _build_url("user", "emails")
-    data = _get(url, headers=headers)
-    return [Email(email=e.get("email", None), is_primary=e.get("primary", False))
-                    for e in data]
 
 
 ######################################################
 ## Convined calls
 ######################################################
 
-def me(access_code:str) -> tuple:
+def me(access_code:str, redirect_uri:str) -> tuple:
     """
     Connect to a gitlab account and get all personal info (profile and the primary email).
     """
-    auth_info = login(access_code)
+    auth_info = login(access_code, redirect_uri)
 
     headers = HEADERS.copy()
-    headers["Authorization"] = "token {}".format(auth_info.access_token)
+    headers["Authorization"] = "Bearer {}".format(auth_info.access_token)
 
+    print ("Authorization: ", headers["Authorization"]);
     user = get_user_profile(headers=headers)
-    emails = get_user_emails(headers=headers)
-
-    primary_email = next(filter(lambda x: x.is_primary, emails))
-    return primary_email.email, user
+    return user.email, user
 
