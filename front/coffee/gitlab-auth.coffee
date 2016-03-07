@@ -22,7 +22,7 @@
 # File: github-auth.coffee
 ###
 
-GithubLoginButtonDirective = ($window, $params, $location, $config, $events, $confirm,
+GitlabLoginButtonDirective = ($window, $params, $location, $config, $events, $confirm,
                               $auth, $navUrls, $loader) ->
     # Login or register a user with his/her gitlab account.
     #
