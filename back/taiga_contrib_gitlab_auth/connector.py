@@ -145,7 +145,7 @@ def get_user_profile(headers:dict=HEADERS):
     data = _get(url, headers=headers)
     return User(id=data.get("id", None),
 		email=data.get("email", None),
-                username=data.get("login", None),
+                username=data.get("login", data.get("username", None)),
                 full_name=(data.get("name", None) or ""),
                 bio=(data.get("bio", None) or ""))
 
