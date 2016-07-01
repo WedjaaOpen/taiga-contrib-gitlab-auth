@@ -34,10 +34,10 @@ Download in your `dist/plugins/` directory of Taiga front the `taiga-contrib-git
   cd dist/
   mkdir -p plugins
   cd plugins
-  svn export "https://github.com/taigaio/taiga-contrib-github-auth/tags/$(pip show taiga-contrib-github-auth | awk '/^Version: /{print $2}')/front/dist"  "github-auth"
+  svn export "https://github.com/WedjaaOpen/taiga-contrib-gitlab-auth/tags/$(pip show taiga-contrib-gitlab-auth | awk '/^Version: /{print $2}')/front/dist"  "gitlab-auth"
 ```
 
-Include in your `dist/conf.json` in the 'contribPlugins' list the value `"/plugins/github-auth/github-auth.json"`:
+Include in your `dist/conf.json` in the 'contribPlugins' list the value `"/plugins/gitlab-auth/gitlab-auth.json"`:
 
 ```json
 ...
