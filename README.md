@@ -21,6 +21,7 @@ Modify your `settings/local.py` and include the line:
   INSTALLED_APPS += ["taiga_contrib_gitlab_auth"]
 
   # Create an application in GitLab - "/admin/applications"
+  # The Taiga callback URL should be: "https://<taiga hostname or IP>/login"
   GITLAB_URL = "https://your.gitlab.access.com"
   GITLAB_APP_ID = "YOUR-GITHUB-CLIENT-ID"
   GITLAB_APP_SECRET = "YOUR-GITHUB-CLIENT-SECRET"
